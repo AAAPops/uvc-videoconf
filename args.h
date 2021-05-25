@@ -1,10 +1,6 @@
 #ifndef INCLUDE_ARGS_H
 #define INCLUDE_args_H
 
-#include <stdio.h>
-#include <stdint.h>
-#include <getopt.h>
-
 
 struct Args_inst {
     char webcam_dev_name[50];

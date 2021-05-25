@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <netinet/in.h>
+#include <getopt.h>
 
 #include "common.h"
 #include "log.h"

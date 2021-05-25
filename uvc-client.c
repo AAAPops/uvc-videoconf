@@ -19,6 +19,7 @@
 #include "log.h"
 #include "tcp_connection.h"
 #include "common.h"
+#include "args.h"
 
 #define FRAME_X   FRAME_W_DEFAULT
 #define FRAME_Y   FRAME_H_DEFAULT
