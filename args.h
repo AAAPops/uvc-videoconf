@@ -3,7 +3,7 @@
 
 
 struct Args_inst {
-    char webcam_dev_name[50];
+    char v4l2loopback_dev[50];
     char *addr_str;
     char ip_addr[15];       // Max length of 255.255.255.255
     uint32_t ip_port;

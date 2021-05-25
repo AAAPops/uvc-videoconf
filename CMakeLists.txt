@@ -23,7 +23,7 @@ add_executable(uvc-server uvc-server.c
 
 add_executable(uvc-client  uvc-client.c
         tcp_connection.c tcp_connection.h
-        log.c utils.c)
+        log.c utils.c args-clnt.c)
 
 target_link_libraries(uvc-server ${UVC_LIB})
 

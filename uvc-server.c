@@ -10,13 +10,6 @@
 #include "tcp_connection.h"
 #include "args.h"
 
-//#define FRAME_X   FRAME_W_DEFAULT
-//#define FRAME_Y   FRAME_H_DEFAULT
-//#define FRAME_RATE   FRAME_RATE_DEFAULT
-
-//#define SRV_ADDR "0.0.0.0"
-//#define SRV_PORT 5100
-
 
 struct Frame_hdr {
     uint16_t magic;    //** Header magic start bytes
@@ -92,7 +85,7 @@ int main(int argc, char **argv) {
     MEMZERO(cbParam);
 
     struct Args_inst argsInst;
-    MEMZERO(cbParam);
+    MEMZERO(argsInst);
     pars_args(argc, argv, &argsInst);
 
     cbParam.frate = argsInst.frame_rate;

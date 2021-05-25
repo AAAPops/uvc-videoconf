@@ -13,19 +13,14 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <linux/videodev2.h>
-#include <poll.h>
+//#include <poll.h>
 #include <netinet/in.h>
 
+#include "common.h"
+#include "utils.h"
 #include "log.h"
 #include "tcp_connection.h"
-#include "common.h"
 #include "args.h"
-
-#define FRAME_X   FRAME_W_DEFAULT
-#define FRAME_Y   FRAME_H_DEFAULT
-
-#define SRV_ADDR  "192.168.1.123"
-#define SRV_PORT  5100
 
 
 struct Frame_hdr {
@@ -37,53 +32,12 @@ struct Frame_hdr {
     uint32_t    sequence;   //** Frame number               16
 } frameHdr;
 
-char *prog;
-char *device;
-int v4l2dev_fd;
-int client_fd;
 
 uint8_t in_buff[300000];
 
 
-void usage(void)
-{
-	fprintf(stderr, "Usage: %s [/dev/videoN]\n", prog);
-	exit(1);
-}
 
-void process_args(int argc, char **argv)
-{
-	prog = argv[0];
-	switch (argc) {
-	case 1:
-		device = "/dev/video0";
-		break;
-	case 2:
-		device = argv[1];
-		break;
-	default:
-		usage();
-		break;
-	}
-}
-
-void sysfail(char *msg)
-{
-	perror(msg);
-	exit(1);
-}
-
-void fail(char *msg)
-{
-	fprintf(stderr, "%s: %s\n", prog, msg);
-	exit(1);
-}
-
-
-
-
-
-int read_header()
+int read_header(int client_fd)
 {
     int ret;
     ssize_t bytes_read;
@@ -102,17 +56,24 @@ int read_header()
     frameHdr.size = htonl(*(uint32_t*)(hdr_buff + 12));
     frameHdr.sequence = htonl(*(uint32_t*)(hdr_buff + 16));
 
-    log_debug("[#%d] Magic: 0x%X,  X: %d,  Y: %d, Rate: %d,  Size: %d",
+    log_trace("[#%d] Magic: 0x%X,  X: %d,  Y: %d, Rate: %d,  Size: %d",
                       frameHdr.sequence, frameHdr.magic,
                       frameHdr.width, frameHdr.height,
                       frameHdr.frate, frameHdr.size);
+
+    // if( srv_i->run_mode == FOREGROUND ) {
+    fprintf(stdout, "%05d\b\b\b\b\b", frameHdr.sequence);
+    fflush(stdout);
+    // if (total_frames > 99999)
+    // total_frames = 0;
+    //}
 
     return 0;
 }
 
 
 
-int read_jpeg_data(void) {
+int read_jpeg_data(int client_fd) {
     ssize_t bytes_read;
 
     bytes_read = read_tcp_data(client_fd, in_buff, frameHdr.size);
@@ -125,7 +86,7 @@ int read_jpeg_data(void) {
     return 0;
 }
 
-int feed_v4l2_dev() {
+int feed_v4l2_dev(int v4l2dev_fd) {
     //write(STDOUT_FILENO, in_buff, frameHdr.size);
 
     write(v4l2dev_fd, in_buff, frameHdr.size);
@@ -133,29 +94,25 @@ int feed_v4l2_dev() {
     return 0;
 }
 
-int copy_frames()
+int copy_frames(int clnt_fd, int v4l2_fd)
 {
     int ret;
 
 
-	while (1)
+    while (1)
     {
-        ret = read_header();
+        ret = read_header(clnt_fd);
         if (ret)
             return -1;
 
-        ret = read_jpeg_data();
+        ret = read_jpeg_data(clnt_fd);
         if (ret)
             return -1;
 
-        ret = feed_v4l2_dev();
+        ret = feed_v4l2_dev(v4l2_fd);
         if (ret)
             return -1;
-
-        //usleep(1000000/30);
-
-        //return 0;
-	}
+    }
 
     return 0;
 }
@@ -166,37 +123,64 @@ int copy_frames()
 	else
 
 
-int open_video(void)
+int open_v4l2loopback_dev(char *device, uint32_t frameX, uint32_t frameY)
 {
     struct v4l2_format v;
+    int fd;
 
-    v4l2dev_fd = open(device, O_RDWR);
-    if (v4l2dev_fd == -1)
-        sysfail(device);
+    fd = open(device, O_RDWR);
+    if (fd == -1)
+       return -1;
 
     v.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-    vidioc(G_FMT, &v);
+    //vidioc(G_FMT, &v);
+    if (ioctl(fd, VIDIOC_G_FMT, &v) == -1) {
+        log_fatal("ioctl(fd, VIDIOC_G_FMT");
+        return -1;
+    }
 
-    v.fmt.pix.width = FRAME_X;
-    v.fmt.pix.height = FRAME_Y;
+    v.fmt.pix.width = frameX;
+    v.fmt.pix.height = frameY;
     v.fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
-    v.fmt.pix.sizeimage = FRAME_X * FRAME_Y * 3;
-    vidioc(S_FMT, &v);
+    v.fmt.pix.sizeimage = frameX * frameY * 3;
+    //vidioc(S_FMT, &v);
+    if (ioctl(fd, VIDIOC_S_FMT, &v) == -1) {
+        log_fatal("ioctl(fd, VIDIOC_G_FMT");
+        return -1;
+    }
 
-    return 0;
+    return fd;
 }
 
 int main(int argc, char **argv)
 {
     int ret;
-    log_set_level(LOG_LEVEL_DEFAULT);
+    int client_fd;
+    int v4l2loopback_fd;
 
-    client_fd = connect_to_srv(SRV_ADDR, SRV_PORT);
+    struct Args_inst argsInst;
+    MEMZERO(argsInst);
+    pars_args(argc, argv, &argsInst);
 
-    process_args(argc, argv);
-    open_video();
-    copy_frames();
+    client_fd = connect_to_srv(argsInst.ip_addr, argsInst.ip_port);
+    if (client_fd < 0)
+      return -1;
 
+
+    v4l2loopback_fd = open_v4l2loopback_dev(argsInst.v4l2loopback_dev,
+                                            argsInst.width, argsInst.height);
+    if (v4l2loopback_fd < 0) {
+        ret = -1;
+        goto err;
+    }
+
+
+    ret = copy_frames(client_fd, v4l2loopback_fd);
+    if (ret < 0) {
+      goto err;
+    }
+
+err:
     client_close(client_fd);
     return 0;
 }

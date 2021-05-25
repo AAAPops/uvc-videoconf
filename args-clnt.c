@@ -16,7 +16,6 @@ const struct option
         { "help",   no_argument,       NULL, '?' },
         { "info",   no_argument,       NULL, 'i' },
         { "port",   required_argument, NULL, 'P' },
-        { "file",   required_argument, NULL, 'F' },
         { "width",  required_argument, NULL, 'w' },
         { "height", required_argument, NULL, 'h' },
         { "frate",  required_argument, NULL, 'f' },
@@ -31,7 +30,7 @@ static void set_defaults(struct Args_inst *argsInst )
 {
     log_set_level(LOG_LEVEL_DEFAULT);
 
-    //strcpy(argsInst->webcam_dev_name, VIDEO_DEV_DEFAULT);
+    strcpy(argsInst->v4l2loopback_dev, VIDEO_DEV_DEFAULT);
     argsInst->width = FRAME_W_DEFAULT;
     argsInst->height = FRAME_H_DEFAULT;
     argsInst->frame_rate = FRAME_RATE_DEFAULT;
@@ -45,15 +44,15 @@ static void set_defaults(struct Args_inst *argsInst )
 
 void usage(char *argv0, struct Args_inst *argsInst) {
     fprintf(stderr, "Version %s \n", VERSION);
-    fprintf(stderr, "Usage: %s -w %d -h %d -f %d [-D%d] [-b] %s:%d  \n\n",
-            argv0,
+    fprintf(stderr, "Usage: %s -d %s -w %d -h %d -f %d [-D%d] [-b] %s:%d  \n\n",
+            argv0, argsInst->v4l2loopback_dev,
             argsInst->width, argsInst->height, argsInst->frame_rate,
             argsInst->debug_level,
             argsInst->ip_addr, argsInst->ip_port );
 
     fprintf(stderr,"Options: \n");
     fprintf(stderr, "\t   | --help          Print this message \n");
-    fprintf(stderr, "\t-i | --info          Get webcam info \n");
+    fprintf(stderr, "\t-d | --device        v4l2loopback device \n");
     fprintf(stderr, "\t-w | --width         Frame width resolution [320..1920] \n");
     fprintf(stderr, "\t-h | --height        Frame height resolution [240..1080]\n");
     fprintf(stderr, "\t-f | --frate         Framerate [5..30] \n");
@@ -84,7 +83,7 @@ int pars_args(int argc, char **argv, struct Args_inst *argsInst)
                 break;
 
             case 'd':
-                //strcpy(argsInst->webcam_dev_name, optarg);
+                strcpy(argsInst->v4l2loopback_dev, optarg);
                 break;
 
             case '?':
@@ -179,8 +178,8 @@ int pars_args(int argc, char **argv, struct Args_inst *argsInst)
     // Parse IP address and port
 
 
-    log_info("Run as:\n\t%s -w %d -h %d -f %d -D%d %s %s:%d \n",
-             argv[0],
+    log_info("Run as:\n\t%s -d %s -w %d -h %d -f %d -D%d %s %s:%d \n",
+             argv[0], argsInst->v4l2loopback_dev,
              argsInst->width, argsInst->height, argsInst->frame_rate,
              argsInst->debug_level,
              (argsInst->run_mode == BACKGROUND) ? "-b":"",
