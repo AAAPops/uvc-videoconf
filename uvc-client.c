@@ -152,6 +152,19 @@ int open_v4l2loopback_dev(char *device, uint32_t frameX, uint32_t frameY)
     return fd;
 }
 
+
+int make_handshake(int fd)
+{
+    int ret;
+
+    ret =  read_header(fd);
+    if (ret)
+        return -1;
+    log_info("make_handshake() = %dx%dx%d", frameHdr.width, frameHdr.height, frameHdr.frate);
+
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     int ret;
@@ -166,9 +179,14 @@ int main(int argc, char **argv)
     if (client_fd < 0)
       return -1;
 
+    ret = make_handshake(client_fd);
+    if (ret < 0 ) {
+        log_fatal("make_handshake()");
+        goto err;
+    }
 
     v4l2loopback_fd = open_v4l2loopback_dev(argsInst.v4l2loopback_dev,
-                                            argsInst.width, argsInst.height);
+                                            frameHdr.width, frameHdr.height);
     if (v4l2loopback_fd < 0) {
         ret = -1;
         goto err;

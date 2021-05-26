@@ -73,7 +73,29 @@ void cb(uvc_frame_t *frame, void *ptr)
     //}
 }
 
+int make_handshake(int fd, uint32_t frameW, uint32_t frameH, uint32_t frameR)
+{
+    int ret;
+    uint8_t hdr_buff[FRAME_HEADER_SZ];
+
+    uint16_t magic = FRAME_HEADER_MAGIC;
+
+    *(uint16_t *) (hdr_buff + 0) = htons(magic);
+    *(uint32_t *) (hdr_buff + 2) = htonl(frameW);
+    *(uint32_t *) (hdr_buff + 6) = htonl(frameH);
+    *(uint16_t *) (hdr_buff + 10) = htons(frameR);
+    *(uint32_t *) (hdr_buff + 12) = 0;
+    *(uint32_t *) (hdr_buff + 16) = 0;
+
+    ret = write_tcp_data(fd, hdr_buff, sizeof(hdr_buff));
+    if (ret < 0)
+        return -1;
+
+    return 0;
+}
+
 int main(int argc, char **argv) {
+    int ret;
     uvc_context_t *ctx;
     uvc_device_t *dev;
     uvc_device_handle_t *devh;
@@ -96,96 +118,111 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    cbParam.client_fd = srv_client_accept(srv_fd, argsInst.ip_addr, argsInst.ip_port);
-    if (cbParam.client_fd < 0) {
-        log_fatal("srv_client_accept()");
-        srv_close(srv_fd);
-        return -1;
+    while (1)
+    {
+        cbParam.cb_err = 0;
+
+        cbParam.client_fd =
+                srv_client_accept(srv_fd, argsInst.ip_addr, argsInst.ip_port);
+        if (cbParam.client_fd < 0) {
+            log_fatal("srv_client_accept()");
+            srv_close(srv_fd);
+            return -1;
+        }
+
+        ret = make_handshake(cbParam.client_fd, argsInst.width,
+                             argsInst.height, argsInst.frame_rate);
+        if (ret < 0 ) {
+            log_fatal("make_handshake()");
+            goto err1;
+        }
+
+        /* Initialize a UVC service context. Libuvc will set up its own libusb
+         * context. Replace NULL with a libusb_context pointer to run libuvc
+         * from an existing libusb context. */
+        uvc_res = uvc_init(&ctx, NULL);
+        if (uvc_res < 0) {
+            log_fatal("uvc_init");
+            return -1;
+        }
+        log_info("UVC initialized()");
+
+        /* Locates the first attached UVC device, stores in dev */
+        uvc_res = uvc_find_device(
+                ctx, &dev, 0, 0,
+                NULL); /* filter devices: vendor_id, product_id, "serial_num" */
+        if (uvc_res < 0) {
+            log_fatal("uvc_find_device()"); /* no devices found */
+            return -1;
+        }
+        log_info("Webcam found");
+
+        /* Try to open the device: requires exclusive access */
+        uvc_res = uvc_open(dev, &devh);
+        if (uvc_res < 0) {
+            log_fatal("uvc_open()"); /* unable to open device */
+            return -1;
+        }
+        log_info("Webcam opened");
+
+        /* Print out a message containing all the information that libuvc
+         * knows about the device */
+        //uvc_print_diag(devh, stderr);
+
+        /* Try to negotiate a Width:Heigh:Fps MJPEG stream profile */
+        uvc_res = uvc_get_stream_ctrl_format_size(
+                devh, &ctrl,            /* result stored in ctrl */
+                UVC_FRAME_FORMAT_MJPEG, /* YUV 422, aka YUV 4:2:2. try _COMPRESSED */
+                argsInst.width, argsInst.height,
+                argsInst.frame_rate /* width, height, fps */
+        );
+
+        /* Print out the result */
+        uvc_print_stream_ctrl(&ctrl, stderr);
+        if (uvc_res < 0) {
+            log_fatal("get_mode"); /* device doesn't provide a matching stream */
+            goto err1;
+        }
+
+        /* Start the video stream. The library will call user function cb:
+        *   cb(frame, (void*) 12345)
+        */
+        uvc_res = uvc_start_streaming(devh, &ctrl, cb, &cbParam, 0);
+        if (uvc_res < 0) {
+            log_fatal("start_streaming()"); /* unable to start stream */
+            goto err1;
+        }
+        log_info("Webcam streaming...");
+
+        uvc_set_ae_mode(devh, 8); // e.g., turn on auto exposure
+        uint8_t ae_mode;
+        uvc_get_ae_mode(devh, &ae_mode, UVC_GET_CUR);
+        log_trace("-----> ae_mode = %d", ae_mode);
+
+        while (cbParam.cb_err >= 0) {
+            usleep(1000);
+        }
+        log_fatal("cb_err = %d", cbParam.cb_err);
+
+        /* End the stream. Blocks until last callback is serviced */
+        uvc_stop_streaming(devh);
+        log_info("Webcam done streaming");
+
+    err1:
+        /* Release our handle on the device */
+        uvc_close(devh);
+        log_info("Webcam closed");
+
+        /* Release the device descriptor */
+        uvc_unref_device(dev);
+
+        /* Close the UVC context. This closes and cleans up any existing device handles, and it closes the libusb context if one was not provided. */
+        uvc_exit(ctx);
+        log_info("UVC exited");
+
+        client_close(cbParam.client_fd);
     }
 
-    /* Initialize a UVC service context. Libuvc will set up its own libusb
-     * context. Replace NULL with a libusb_context pointer to run libuvc
-     * from an existing libusb context. */
-    uvc_res = uvc_init(&ctx, NULL);
-    if (uvc_res < 0) {
-        log_fatal("uvc_init");
-        return -1;
-    }
-    log_info("UVC initialized()");
-
-    /* Locates the first attached UVC device, stores in dev */
-    uvc_res = uvc_find_device(ctx, &dev, 0, 0, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
-    if (uvc_res < 0) {
-        log_fatal("uvc_find_device()"); /* no devices found */
-        return -1;
-    }
-    log_info("Webcam found");
-
-    /* Try to open the device: requires exclusive access */
-    uvc_res = uvc_open(dev, &devh);
-    if (uvc_res < 0) {
-        log_fatal("uvc_open()"); /* unable to open device */
-        return -1;
-    }
-    log_info("Webcam opened");
-
-    /* Print out a message containing all the information that libuvc
-     * knows about the device */
-    uvc_print_diag(devh, stderr);
-
-    /* Try to negotiate a Width:Heigh:Fps MJPEG stream profile */
-    uvc_res = uvc_get_stream_ctrl_format_size(
-            devh, &ctrl,                 /* result stored in ctrl */
-            UVC_FRAME_FORMAT_MJPEG,      /* YUV 422, aka YUV 4:2:2. try _COMPRESSED */
-            argsInst.width, argsInst.height, argsInst.frame_rate /* width, height, fps */
-    );
-
-    /* Print out the result */
-    uvc_print_stream_ctrl(&ctrl, stderr);
-    if (uvc_res < 0) {
-        log_fatal("get_mode"); /* device doesn't provide a matching stream */
-        goto err1;
-    }
-
-    /* Start the video stream. The library will call user function cb:
-     *   cb(frame, (void*) 12345)
-     */
-    uvc_res = uvc_start_streaming(devh, &ctrl, cb, &cbParam, 0);
-    if (uvc_res < 0) {
-        log_fatal("start_streaming()"); /* unable to start stream */
-        goto err1;
-    }
-    log_info("Webcam streaming...");
-
-    uvc_set_ae_mode(devh, 8); // e.g., turn on auto exposure
-    uint8_t ae_mode;
-    uvc_get_ae_mode(devh, &ae_mode, UVC_GET_CUR);
-    log_trace("-----> ae_mode = %d", ae_mode);
-
-    while (cbParam.cb_err >= 0) {
-        usleep(1000);
-    }
-    log_fatal("cb_err = %d", cbParam.cb_err);
-
-    /* End the stream. Blocks until last callback is serviced */
-    uvc_stop_streaming(devh);
-    log_info("Webcam done streaming");
-
-
-err1 :
-    /* Release our handle on the device */
-    uvc_close(devh);
-    log_info("Webcam closed");
-
-    /* Release the device descriptor */
-    uvc_unref_device(dev);
-
-    /* Close the UVC context. This closes and cleans up any existing device handles,
-    * and it closes the libusb context if one was not provided. */
-    uvc_exit(ctx);
-    log_info("UVC exited");
-
-    client_close(cbParam.client_fd);
     srv_close(srv_fd);
     log_info("Server stop");
 

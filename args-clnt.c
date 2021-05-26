@@ -44,20 +44,19 @@ static void set_defaults(struct Args_inst *argsInst )
 
 void usage(char *argv0, struct Args_inst *argsInst) {
     fprintf(stderr, "Version %s \n", VERSION);
-    fprintf(stderr, "Usage: %s -d %s -w %d -h %d -f %d [-D%d] [-b] %s:%d  \n\n",
+    fprintf(stderr, "Usage: %s -d %s [-D%d] [-b] %s:%d  \n\n",
             argv0, argsInst->v4l2loopback_dev,
-            argsInst->width, argsInst->height, argsInst->frame_rate,
             argsInst->debug_level,
             argsInst->ip_addr, argsInst->ip_port );
 
     fprintf(stderr,"Options: \n");
     fprintf(stderr, "\t   | --help          Print this message \n");
     fprintf(stderr, "\t-d | --device        v4l2loopback device \n");
-    fprintf(stderr, "\t-w | --width         Frame width resolution [320..1920] \n");
-    fprintf(stderr, "\t-h | --height        Frame height resolution [240..1080]\n");
-    fprintf(stderr, "\t-f | --frate         Framerate [5..30] \n");
+    //fprintf(stderr, "\t-w | --width         Frame width resolution [320..1920] \n");
+    //fprintf(stderr, "\t-h | --height        Frame height resolution [240..1080]\n");
+    //fprintf(stderr, "\t-f | --frate         Framerate [5..30] \n");
     fprintf(stderr, "\t-b | --background    Run in background mode \n");
-    fprintf(stderr, "\t-D | --debug         Debug level [0..6] \n");
+    fprintf(stderr, "\t-D | --debug         Debug level [0..5] \n");
 }
 
 
@@ -178,9 +177,8 @@ int pars_args(int argc, char **argv, struct Args_inst *argsInst)
     // Parse IP address and port
 
 
-    log_info("Run as:\n\t%s -d %s -w %d -h %d -f %d -D%d %s %s:%d \n",
+    log_info("Run as:\n\t%s -d %s -D%d %s %s:%d \n",
              argv[0], argsInst->v4l2loopback_dev,
-             argsInst->width, argsInst->height, argsInst->frame_rate,
              argsInst->debug_level,
              (argsInst->run_mode == BACKGROUND) ? "-b":"",
              argsInst->ip_addr, argsInst->ip_port );

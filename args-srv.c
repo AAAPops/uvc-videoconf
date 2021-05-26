@@ -58,7 +58,7 @@ void usage(char *argv0, struct Args_inst *argsInst) {
     fprintf(stderr, "\t-h | --height        Frame height resolution [240..1080]\n");
     fprintf(stderr, "\t-f | --frate         Framerate [5..30] \n");
     fprintf(stderr, "\t-b | --background    Run in background mode \n");
-    fprintf(stderr, "\t-D | --debug         Debug level [0..6] \n");
+    fprintf(stderr, "\t-D | --debug         Debug level [0..5] \n");
 }
 
 
