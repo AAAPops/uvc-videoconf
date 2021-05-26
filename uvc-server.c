@@ -94,6 +94,9 @@ int make_handshake(int fd, uint32_t frameW, uint32_t frameH, uint32_t frameR)
     return 0;
 }
 
+void print_webcam_info(void);
+
+
 int main(int argc, char **argv) {
     int ret;
     uvc_context_t *ctx;
@@ -109,6 +112,9 @@ int main(int argc, char **argv) {
     struct Args_inst argsInst;
     MEMZERO(argsInst);
     pars_args(argc, argv, &argsInst);
+
+    if (argsInst.get_info == 1)
+        print_webcam_info();
 
     cbParam.frate = argsInst.frame_rate;
 
@@ -227,4 +233,59 @@ int main(int argc, char **argv) {
     log_info("Server stop");
 
     return 0;
+}
+
+void print_webcam_info(void)
+{
+    int ret;
+    uvc_context_t *ctx;
+    uvc_device_t *dev;
+    uvc_device_handle_t *devh;
+    uvc_error_t uvc_res;
+
+    /* Initialize a UVC service context. Libuvc will set up its own libusb
+         * context. Replace NULL with a libusb_context pointer to run libuvc
+         * from an existing libusb context. */
+    uvc_res = uvc_init(&ctx, NULL);
+    if (uvc_res < 0) {
+        log_fatal("uvc_init");
+        exit(-1);
+    }
+    log_info("UVC initialized()");
+
+    /* Locates the first attached UVC device, stores in dev */
+    uvc_res = uvc_find_device(
+            ctx, &dev, 0, 0,
+            NULL); /* filter devices: vendor_id, product_id, "serial_num" */
+    if (uvc_res < 0) {
+        log_fatal("uvc_find_device()"); /* no devices found */
+        exit(-1);
+    }
+    log_info("Webcam found");
+
+    /* Try to open the device: requires exclusive access */
+    uvc_res = uvc_open(dev, &devh);
+    if (uvc_res < 0) {
+        log_fatal("uvc_open()"); /* unable to open device */
+        exit(-1);
+    }
+    log_info("Webcam opened");
+
+    /* Print out a message containing all the information that libuvc
+    * knows about the device */
+    uvc_print_diag(devh, stderr);
+
+
+    /* Release our handle on the device */
+    uvc_close(devh);
+    log_info("Webcam closed");
+
+    /* Release the device descriptor */
+    uvc_unref_device(dev);
+
+    /* Close the UVC context. This closes and cleans up any existing device handles, and it closes the libusb context if one was not provided. */
+    uvc_exit(ctx);
+    log_info("UVC exited");
+
+    exit(0);
 }

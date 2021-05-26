@@ -40,6 +40,7 @@ static void set_defaults(struct Args_inst *argsInst )
     argsInst->ip_port = IP_PORT_DEFAULT;
     argsInst->run_mode = FOREGROUND;
     argsInst->debug_level = LOG_LEVEL_DEFAULT;
+    argsInst->get_info = 0;
 }
 
 
@@ -92,7 +93,7 @@ int pars_args(int argc, char **argv, struct Args_inst *argsInst)
                 exit(0);
 
             case 'i':
-                //argsInst->get_info = 1;
+                argsInst->get_info = 1;
                 break;
 
             case 'w':

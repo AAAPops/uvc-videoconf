@@ -13,6 +13,7 @@ struct Args_inst {
     uint32_t frame_count;
     uint32_t run_mode;
     uint32_t debug_level;
+    uint32_t get_info;
 };
 
 
