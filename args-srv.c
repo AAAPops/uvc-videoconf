@@ -186,6 +186,8 @@ int pars_args(int argc, char **argv, struct Args_inst *argsInst)
              argsInst->debug_level,
              (argsInst->run_mode == BACKGROUND) ? "-b":"",
              argsInst->ip_addr, argsInst->ip_port );
+    if (argsInst->run_mode == BACKGROUND)
+        log_info("Log file: %s", LOG_FILE_NAME);
 
     return  0;
 }

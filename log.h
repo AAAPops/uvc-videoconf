@@ -13,7 +13,7 @@
 
 #define LOG_VERSION "0.1.0"
 
-#define LOG_FILE_NAME "/var/log/webcam_x264.log"
+#define LOG_FILE_NAME "/tmp/uvc-srv.log"
 //FILE *log_fp;
 
 typedef void (*log_LockFn)(void *udata, int lock);

@@ -3,13 +3,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include "common.h"
 #include "utils.h"
 #include "log.h"
 #include "tcp_connection.h"
 #include "args.h"
-
 
 struct Frame_hdr {
     uint16_t magic;    //** Header magic start bytes
@@ -25,6 +25,7 @@ struct cb_param {
     int client_fd;
     uint16_t frate;
     int cb_err;
+    int run_mode;
 };
 
 /* This callback function runs once per frame. Use it to perform any
@@ -64,13 +65,10 @@ void cb(uvc_frame_t *frame, void *ptr)
               frame->data_bytes);
 
 
-
-    // if( srv_i->run_mode == FOREGROUND ) {
-    fprintf(stdout, "%05d\b\b\b\b\b", frame->sequence);
-    fflush(stdout);
-    // if (total_frames > 99999)
-    // total_frames = 0;
-    //}
+    if( cbParam->run_mode == FOREGROUND ) {
+        fprintf(stdout, "%05d\b\b\b\b\b", frame->sequence);
+        fflush(stdout);
+    }
 }
 
 int make_handshake(int fd, uint32_t frameW, uint32_t frameH, uint32_t frameR)
@@ -96,6 +94,60 @@ int make_handshake(int fd, uint32_t frameW, uint32_t frameH, uint32_t frameR)
 
 void print_webcam_info(void);
 
+int run_as_daemon(void) {
+    /* Our process ID and Session ID */
+    pid_t pid, sid;
+
+    /* Fork off the parent process */
+    pid = fork();
+    if( pid < 0 ) {
+        log_fatal("fork() [%m]");
+        exit(EXIT_FAILURE);;
+    }
+    /* If we got a good PID, then we can exit the parent process. */
+    if (pid > 0) { // Parent process has finished executing
+        log_debug("Parent process has finished executing");
+        exit(0);
+    }
+
+    /* Change the file mode mask */
+    umask(0);
+
+    /* Open any logs here */
+    FILE *log_fp;
+    log_fp = fopen(LOG_FILE_NAME, "w");
+    if (log_fp) {
+        log_set_fp(log_fp);
+    } else {
+        log_warn("fopen() [%m]");
+        log_warn("Continue without logging into file '%s'", LOG_FILE_NAME);
+    }
+
+
+    /* Create a new SID for the child process */
+    sid = setsid();
+    if (sid < 0) {
+        log_fatal("setsid() [%m]");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Change the current working directory */
+    if( chdir("/") < 0 ) {
+        log_fatal("chdir() [%m]");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Close out the standard file descriptors */
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
+
+    /* Daemon-specific initialization goes here */
+    log_set_quiet(BACKGROUND);
+
+    return 0;
+}
+
 
 int main(int argc, char **argv) {
     int ret;
@@ -118,6 +170,12 @@ int main(int argc, char **argv) {
 
     cbParam.frate = argsInst.frame_rate;
 
+    if( argsInst.run_mode == BACKGROUND) {
+        ret = run_as_daemon();
+        if (ret < 0)
+            return -1;
+    }
+
     int srv_fd = srv_start(argsInst.ip_addr, argsInst.ip_port);
     if (srv_fd < 0) {
         log_fatal("srv_start()");
@@ -127,6 +185,7 @@ int main(int argc, char **argv) {
     while (1)
     {
         cbParam.cb_err = 0;
+        cbParam.run_mode = argsInst.run_mode;
 
         cbParam.client_fd =
                 srv_client_accept(srv_fd, argsInst.ip_addr, argsInst.ip_port);
