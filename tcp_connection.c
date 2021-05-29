@@ -5,7 +5,7 @@
 
 #include <netinet/in.h>
 #include <sys/socket.h>
-#include <sys/socket.h>
+#include <sys/un.h>
 #include <arpa/inet.h>
 
 #include "log.h"
@@ -216,4 +216,32 @@ void client_close(int client_fd) {
         log_fatal("'Srv: peer close()");
 
     log_info("Peer closed successful");
+}
+
+int connect_to_unix_socket(const char *socket_path) {
+    int client_fd;
+    struct sockaddr_un addr;
+    MEMZERO(addr);
+
+    // socket create and verification
+    client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if( client_fd == -1 ) {
+        log_fatal("Socket creation failed...");
+        return -1;
+    }
+    log_info("Socket successfully created..");
+
+    addr.sun_family = AF_UNIX;
+    strcpy(addr.sun_path, socket_path);
+    //printf("addr.sun_path: %s [%lu] \n", addr.sun_path, strlen(addr.sun_path));
+
+    // connect the client socket to server socket
+    int ret = connect(client_fd, (struct sockaddr*)&addr, sizeof(addr));
+    if (ret) {
+        log_fatal("Connection with the server failed...");
+        return -1;
+    }
+    log_info("Connected to the server..");
+
+    return client_fd;
 }

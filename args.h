@@ -6,6 +6,7 @@ struct Args_inst {
     char v4l2loopback_dev[50];
     char *addr_str;
     char ip_addr[15];       // Max length of 255.255.255.255
+    char *ip_unix;
     uint32_t ip_port;
     uint32_t width;
     uint32_t height;

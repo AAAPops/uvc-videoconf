@@ -30,6 +30,7 @@ int read_tcp_data(int peer_fd, void *buffer, size_t count);
 
 // Client
 int connect_to_srv(const char *addr_str, int port);
+int connect_to_unix_socket(const char *socket_path);
 void client_close(int client_fd);
 
 #endif

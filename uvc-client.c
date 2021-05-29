@@ -37,7 +37,7 @@ uint8_t in_buff[300000];
 
 
 
-int read_header(int client_fd)
+int read_header(int client_fd, uint32_t runMode)
 {
     int ret;
     ssize_t bytes_read;
@@ -61,12 +61,10 @@ int read_header(int client_fd)
                       frameHdr.width, frameHdr.height,
                       frameHdr.frate, frameHdr.size);
 
-    // if( srv_i->run_mode == FOREGROUND ) {
-    fprintf(stdout, "%05d\b\b\b\b\b", frameHdr.sequence);
-    fflush(stdout);
-    // if (total_frames > 99999)
-    // total_frames = 0;
-    //}
+    if( runMode == FOREGROUND && log_get_level() == LOG_INFO ) {
+        fprintf(stdout, "%05d\b\b\b\b\b", frameHdr.sequence);
+        fflush(stdout);
+    }
 
     return 0;
 }
@@ -94,14 +92,14 @@ int feed_v4l2_dev(int v4l2dev_fd) {
     return 0;
 }
 
-int copy_frames(int clnt_fd, int v4l2_fd)
+int copy_frames(int clnt_fd, int v4l2_fd, uint32_t run_mode)
 {
     int ret;
 
 
     while (1)
     {
-        ret = read_header(clnt_fd);
+        ret = read_header(clnt_fd, run_mode);
         if (ret)
             return -1;
 
@@ -157,7 +155,7 @@ int make_handshake(int fd)
 {
     int ret;
 
-    ret =  read_header(fd);
+    ret =  read_header(fd, 1);
     if (ret)
         return -1;
     log_info("make_handshake() = %dx%dx%d", frameHdr.width, frameHdr.height, frameHdr.frate);
@@ -175,9 +173,13 @@ int main(int argc, char **argv)
     MEMZERO(argsInst);
     pars_args(argc, argv, &argsInst);
 
-    client_fd = connect_to_srv(argsInst.ip_addr, argsInst.ip_port);
+    if (argsInst.ip_unix) {
+        client_fd = connect_to_unix_socket(argsInst.ip_unix);
+    } else {
+        client_fd = connect_to_srv(argsInst.ip_addr, argsInst.ip_port);
+    }
     if (client_fd < 0)
-      return -1;
+        return -1;
 
     ret = make_handshake(client_fd);
     if (ret < 0 ) {
@@ -193,7 +195,7 @@ int main(int argc, char **argv)
     }
 
 
-    ret = copy_frames(client_fd, v4l2loopback_fd);
+    ret = copy_frames(client_fd, v4l2loopback_fd, argsInst.run_mode);
     if (ret < 0) {
       goto err;
     }

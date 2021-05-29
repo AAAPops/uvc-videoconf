@@ -37,6 +37,7 @@ static void set_defaults(struct Args_inst *argsInst )
 
     strcpy(argsInst->ip_addr, IP_ADDR_DEFAULT);
     argsInst->ip_port = IP_PORT_DEFAULT;
+    argsInst->ip_unix = NULL;
     argsInst->run_mode = FOREGROUND;
     argsInst->debug_level = LOG_LEVEL_DEFAULT;
 }
@@ -44,7 +45,7 @@ static void set_defaults(struct Args_inst *argsInst )
 
 void usage(char *argv0, struct Args_inst *argsInst) {
     fprintf(stderr, "Version %s \n", VERSION);
-    fprintf(stderr, "Usage: %s -d %s [-D%d] [-b] %s:%d  \n\n",
+    fprintf(stderr, "Usage: %s -d %s [-D%d] [-b] [ip:port or Unix socket path]  \n\n",
             argv0, argsInst->v4l2loopback_dev,
             argsInst->debug_level,
             argsInst->ip_addr, argsInst->ip_port );
@@ -158,30 +159,45 @@ int pars_args(int argc, char **argv, struct Args_inst *argsInst)
 
     char *colon_ptr = strchr(ip_addr_str, ':');
     if (!colon_ptr) {
-        log_fatal("A problem with parameter IP:port");
+        log_fatal("A problem with parameter IP:port or unix:path");
         return -1;
     }
+
     *colon_ptr = '\0';
 
-    strcpy(argsInst->ip_addr, ip_addr_str);
-    argsInst->ip_port = strtol(colon_ptr + 1, NULL, 10);
 
-    if (strcmp(argsInst->ip_addr, "*") == 0) {
-        strcpy(argsInst->ip_addr, "0.0.0.0");
-    }
+    if (strncmp(ip_addr_str, "unix", 4) == 0) {
+        // Unix socket case
+        argsInst->ip_unix = colon_ptr + 1;
 
-    if (argsInst->ip_port < 1024 || argsInst->ip_port > 65535) {
+        log_info("Run as:\n\t%s -d %s -D%d %s unix:%s \n",
+                 argv[0], argsInst->v4l2loopback_dev,
+                 argsInst->debug_level,
+                 (argsInst->run_mode == BACKGROUND) ? "-b" : "",
+                 argsInst->ip_unix);
+
+    } else {
+        // IP:port case
+        strcpy(argsInst->ip_addr, ip_addr_str);
+        argsInst->ip_port = strtol(colon_ptr + 1, NULL, 10);
+
+        if (strcmp(argsInst->ip_addr, "*") == 0) {
+            strcpy(argsInst->ip_addr, "0.0.0.0");
+        }
+
+        if (argsInst->ip_port < 1024 || argsInst->ip_port > 65535) {
             log_fatal("A problem with parameter '--port'");
             return -1;
+        }
+
+        log_info("Run as:\n\t%s -d %s -D%d %s %s:%d \n",
+                 argv[0], argsInst->v4l2loopback_dev,
+                 argsInst->debug_level,
+                 (argsInst->run_mode == BACKGROUND) ? "-b" : "",
+                 argsInst->ip_addr, argsInst->ip_port);
     }
-    // Parse IP address and port
 
 
-    log_info("Run as:\n\t%s -d %s -D%d %s %s:%d \n",
-             argv[0], argsInst->v4l2loopback_dev,
-             argsInst->debug_level,
-             (argsInst->run_mode == BACKGROUND) ? "-b":"",
-             argsInst->ip_addr, argsInst->ip_port );
 
     return  0;
 }
