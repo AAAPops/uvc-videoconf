@@ -242,11 +242,15 @@ int main(int argc, char **argv) {
                 argsInst.frame_rate /* width, height, fps */
         );
 
-        /* Print out the result */
-        uvc_print_stream_ctrl(&ctrl, stderr);
         if (uvc_res < 0) {
-            log_fatal("get_mode"); /* device doesn't provide a matching stream */
+            log_fatal("uvc_get_stream_ctrl_format_size()"); /* device doesn't provide a matching stream */
             goto err1;
+        }
+        /* Print out the result */
+        if( log_get_level() <= LOG_INFO ) {
+            log_info("\n---------- Webcam controls ----------");
+            uvc_print_stream_ctrl(&ctrl, stderr);
+            log_info("\n-------------------------------------");
         }
 
         /* Start the video stream. The library will call user function cb:
