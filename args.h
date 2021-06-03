@@ -4,7 +4,6 @@
 
 struct Args_inst {
     char v4l2loopback_dev[50];
-    char *addr_str;
     char ip_addr[15];       // Max length of 255.255.255.255
     char *ip_unix;
     uint32_t ip_port;
@@ -15,6 +14,9 @@ struct Args_inst {
     uint32_t run_mode;
     uint32_t debug_level;
     uint32_t get_info;
+    char video_size[80];
+    uint32_t frame_format;
+    char frame_format_str[10];
 };
 
 

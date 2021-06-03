@@ -45,7 +45,7 @@ static void set_defaults(struct Args_inst *argsInst )
 
 void usage(char *argv0, struct Args_inst *argsInst) {
     fprintf(stderr, "Version %s \n", VERSION);
-    fprintf(stderr, "Usage: %s -d %s [-D%d] [-b] [ip:port or Unix socket path]  \n\n",
+    fprintf(stderr, "Usage: %s -d %s [-D%d] [-b] [ip:port or unix:/path/to/socket]  \n\n",
             argv0, argsInst->v4l2loopback_dev,
             argsInst->debug_level,
             argsInst->ip_addr, argsInst->ip_port );

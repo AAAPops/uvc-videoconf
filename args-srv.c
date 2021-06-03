@@ -3,12 +3,15 @@
 #include <stdlib.h>
 #include <netinet/in.h>
 #include <getopt.h>
+#include "libuvc/libuvc.h"
 
 #include "common.h"
 #include "log.h"
 #include "args.h"
 
-const char short_options[] = "d:?iP:w:h:f:D:b";
+#define FRAME_FORMAT_DEFAULT  UVC_FRAME_FORMAT_MJPEG
+
+const char short_options[] = "d:?iP:D:b:t:v:";
 
 const struct option
         long_options[] = {
@@ -16,10 +19,8 @@ const struct option
         { "help",   no_argument,       NULL, '?' },
         { "info",   no_argument,       NULL, 'i' },
         { "port",   required_argument, NULL, 'P' },
-        { "file",   required_argument, NULL, 'F' },
-        { "width",  required_argument, NULL, 'w' },
-        { "height", required_argument, NULL, 'h' },
-        { "frate",  required_argument, NULL, 'f' },
+        { "video",  required_argument, NULL, 'v' },
+        { "vtype",  required_argument, NULL, 't' },
         { "count",  required_argument, NULL, 'c' },
         { "debug",  required_argument, NULL, 'D' },
         { "background",  required_argument, NULL, 'b' },
@@ -36,6 +37,9 @@ static void set_defaults(struct Args_inst *argsInst )
     argsInst->height = FRAME_H_DEFAULT;
     argsInst->frame_rate = FRAME_RATE_DEFAULT;
 
+    argsInst->frame_format = FRAME_FORMAT_DEFAULT;
+    strcpy(argsInst->frame_format_str, "MJPEG");
+
     strcpy(argsInst->ip_addr, IP_ADDR_DEFAULT);
     argsInst->ip_port = IP_PORT_DEFAULT;
     argsInst->run_mode = FOREGROUND;
@@ -46,18 +50,18 @@ static void set_defaults(struct Args_inst *argsInst )
 
 void usage(char *argv0, struct Args_inst *argsInst) {
     fprintf(stderr, "Version %s \n", VERSION);
-    fprintf(stderr, "Usage: %s -w %d -h %d -f %d [-D%d] [-b] %s:%d  \n\n",
+    fprintf(stderr, "Usage: %s  --video %dx%dx%d -t %s [-D%d] [-b] %s:%d  \n\n",
             argv0,
             argsInst->width, argsInst->height, argsInst->frame_rate,
+            argsInst->frame_format_str,
             argsInst->debug_level,
             argsInst->ip_addr, argsInst->ip_port );
 
     fprintf(stderr,"Options: \n");
     fprintf(stderr, "\t   | --help          Print this message \n");
     fprintf(stderr, "\t-i | --info          Get webcam info \n");
-    fprintf(stderr, "\t-w | --width         Frame width resolution [320..1920] \n");
-    fprintf(stderr, "\t-h | --height        Frame height resolution [240..1080]\n");
-    fprintf(stderr, "\t-f | --frate         Framerate [5..30] \n");
+    fprintf(stderr, "\t-v | --video         Video in format Width x Heihgt x Framerate \n");
+    fprintf(stderr, "\t-t | --type          Video type: MJPEG or H264  \n");
     fprintf(stderr, "\t-b | --background    Run in background mode \n");
     fprintf(stderr, "\t-D | --debug         Debug level [0..5] \n");
 }
@@ -96,34 +100,73 @@ int pars_args(int argc, char **argv, struct Args_inst *argsInst)
                 argsInst->get_info = 1;
                 break;
 
-            case 'w':
-                argsInst->width = strtol(optarg, NULL, 10);
-                if (argsInst->width < 320 || argsInst->width > 1920) {
-                    log_fatal("A problem with parameter '--width'");
-                    return -1;
-                }
-                break;
-
-            case 'h':
-                argsInst->height = strtol(optarg, NULL, 10);
-                if (argsInst->height < 240 || argsInst->height > 1080) {
-                    log_fatal("A problem with parameter '--height'");
-                    return -1;
-                }
-                break;
-
             case 'F':
                 log_fatal("'--file' option is not implemented yet");
                 return -1;
                 break;
 
-            case 'f':
-                argsInst->frame_rate = strtol(optarg, NULL, 10);
-                if (argsInst->frame_rate < 5 || argsInst->frame_rate > 30) {
-                    log_fatal("A problem with parameter '--frate'");
+            case 't':
+                if( strcmp(optarg, "MJPEG") == 0 ) {
+                    argsInst->frame_format = UVC_FRAME_FORMAT_MJPEG;
+                    strcpy(argsInst->frame_format_str, "MJPEG");
+                } else if (strcmp(optarg, "H264") == 0) {
+                    log_fatal("Support 'H264' format not implemented yet");
+                    return -1;
+                } else {
+                    log_fatal("A problem with parameter '--video type'");
                     return -1;
                 }
                 break;
+
+            case 'v':
+            {
+                const char s[2] = "x";
+                char *token;
+
+                if( strlen(optarg) > 80 ) {
+                    log_fatal("A problem with parameter '--video'");
+                    return -1;
+                }
+                strcpy(argsInst->video_size, optarg);
+                //log_warn("Video: %s", argsInst->video_size);
+
+                /* get the first token */
+                token = strtok(argsInst->video_size, s);
+                argsInst->width = strtol(token, NULL, 10);
+                if (argsInst->width < 320 || argsInst->width > 1920) {
+                    log_fatal("A problem with Video frame 'Width'");
+                    return -1;
+                }
+
+                /* walk through other tokens */
+                int i;
+                for (i = 0; i < 2; i++) {
+                    token = strtok(NULL, s);
+                    if (token == NULL) {
+                        log_fatal("A problem with parameter '--video'");
+                        return -1;
+                    }
+
+                    if( i == 0 ) {
+                        argsInst->height = strtol(token, NULL, 10);
+                        if (argsInst->height < 240 || argsInst->height > 1080) {
+                            log_fatal("A problem with parameter '--height'");
+                            return -1;
+                        }
+                    }
+
+                    if( i == 1 ) {
+                        argsInst->frame_rate = strtol(token, NULL, 10);
+                        if (argsInst->frame_rate < 5 || argsInst->frame_rate > 30) {
+                            log_fatal("A problem with parameter '--frate'");
+                            return -1;
+                        }
+
+                    }
+                }
+
+                break;
+            }
 
             case 'c':
                 argsInst->frame_count = strtol(optarg, NULL, 10);
@@ -155,6 +198,8 @@ int pars_args(int argc, char **argv, struct Args_inst *argsInst)
         }
     }
 
+    if( argsInst->get_info == 1 )
+        return 0;
 
     // Parse IP address and port
     char *ip_addr_str = argv[argc-1];
@@ -180,9 +225,10 @@ int pars_args(int argc, char **argv, struct Args_inst *argsInst)
     // Parse IP address and port
 
 
-    log_info("Run as:\n\t%s -w %d -h %d -f %d -D%d %s %s:%d \n",
+    log_info("Run as:\n\t%s %dx%dx%d -t %s -D%d %s %s:%d \n",
              argv[0],
              argsInst->width, argsInst->height, argsInst->frame_rate,
+             argsInst->frame_format_str,
              argsInst->debug_level,
              (argsInst->run_mode == BACKGROUND) ? "-b":"",
              argsInst->ip_addr, argsInst->ip_port );

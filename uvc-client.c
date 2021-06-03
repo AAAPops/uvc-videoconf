@@ -171,7 +171,10 @@ int main(int argc, char **argv)
 
     struct Args_inst argsInst;
     MEMZERO(argsInst);
-    pars_args(argc, argv, &argsInst);
+
+    ret = pars_args(argc, argv, &argsInst);
+    if( ret < 0 )
+        return -1;
 
     if (argsInst.ip_unix) {
         client_fd = connect_to_unix_socket(argsInst.ip_unix);

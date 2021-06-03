@@ -163,7 +163,10 @@ int main(int argc, char **argv) {
 
     struct Args_inst argsInst;
     MEMZERO(argsInst);
-    pars_args(argc, argv, &argsInst);
+
+    ret = pars_args(argc, argv, &argsInst);
+    if( ret < 0 )
+        return -1;
 
     if (argsInst.get_info == 1)
         print_webcam_info();
@@ -237,7 +240,7 @@ int main(int argc, char **argv) {
         /* Try to negotiate a Width:Heigh:Fps MJPEG stream profile */
         uvc_res = uvc_get_stream_ctrl_format_size(
                 devh, &ctrl,            /* result stored in ctrl */
-                UVC_FRAME_FORMAT_MJPEG, /* YUV 422, aka YUV 4:2:2. try _COMPRESSED */
+                argsInst.frame_format, /* YUV 422, aka YUV 4:2:2. try _COMPRESSED */
                 argsInst.width, argsInst.height,
                 argsInst.frame_rate /* width, height, fps */
         );
